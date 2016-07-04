@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw" xmlns:json="http://www.mulesoft.org/schema/mule/json" xmlns:vm="http://www.mulesoft.org/schema/mule/vm" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:batch="http://www.mulesoft.org/schema/mule/batch" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd
+http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd">
+    <http:listener-config name="HTTP_Listener_Configuration" host="0.0.0.0" port="8081" doc:name="HTTP Listener Configuration"/>
+    <vm:connector name="VM" validateConnections="true" doc:name="VM"/>
+    <http:request-config name="HTTP_Request_Configuration" host="panduit-system-api.cloudhub.io" port="80" basePath="/rest/v1/System/" doc:name="HTTP Request Configuration"/>
+    <sub-flow name="getPricingInfo-FlowVars">
+        <set-variable variableName="bs_id" value="#[message.payload.getPricingInfo.quote_process.bs_id]" doc:name="bs_id"/>
+        <set-variable variableName="buyer_company_name" value="#[message.payload.getPricingInfo.quote_process.buyer_company_name]" doc:name="buyer_company_name"/>
+        <set-variable variableName="supplier_company_name" value="#[message.payload.getPricingInfo.quote_process.supplier_company_name]" doc:name="supplier_company_name"/>
+        <set-variable variableName="customer_id" value="#[message.payload.getPricingInfo.quote_process._customer_id]" doc:name="customer_id"/>
+        <set-variable variableName="transactionID_quote" value="#[message.payload.getPricingInfo.quote_process.transactionID_quote]" doc:name="transactionID_quote"/>
+        <set-variable variableName="shipTo_country" value="#[message.payload.getPricingInfo.quote_process.shipTo_country]" doc:name="shipTo_country"/>
+        <set-variable variableName="qpq_quote_number" value="#[message.payload.getPricingInfo.quote_process.qpq_quote_number]" doc:name="qpq_quote_number"/>
+    </sub-flow>
+    <flow name="panduit-part-fulfillment-pocFlow">
+        <http:listener config-ref="HTTP_Listener_Configuration" path="/test-part" doc:name="HTTP"/>
+        <logger message="Entered flow with Payload #[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Logger"/>
+        <json:json-to-object-transformer returnClass="com.panduit.poc.PartFulfillment" mimeType="application/json" doc:name="JSON to Object"/>
+        <vm:outbound-endpoint exchange-pattern="request-response" path="getPricingInfo" connector-ref="VM" doc:name="CALL -&gt; getPricingInfo"/>
+        <vm:outbound-endpoint exchange-pattern="request-response" path="getStandardLeadTime" connector-ref="VM" doc:name="CALL -&gt; getStandardLeadTime"/>
+        <logger message="Payload After -&gt; #[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Logger"/>
+    </flow>
+    <flow name="getPricingInfo">
+        <vm:inbound-endpoint exchange-pattern="request-response" path="getPricingInfo" connector-ref="VM" doc:name="VM"/>
+        <logger message="Received Payload #[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Logger"/>
+        <flow-ref name="getPricingInfo-FlowVars" doc:name="getPricingInfo-FlowVars"/>
+        <foreach collection="#[message.payload.getPricingInfo.quote_process.line_process.lines]" doc:name="For Each">
+            <http:request config-ref="HTTP_Request_Configuration" path="/part/{part_number}/pricing" method="GET" doc:name="Call GetPricingInfo">
+                <http:request-builder>
+                    <http:query-param paramName="quote_Num" value="#[flowVars.qpq_quote_number]"/>
+                    <http:query-param paramName="customer_id" value="#[flowVars.customer_id]"/>
+                    <http:query-param paramName="docNum" value="#[message.payload._document_number]"/>
+                    <http:query-param paramName="requestQty" value="#[message.payload.qty_line]"/>
+                    <http:uri-param paramName="part_number" value="#[message.payload._part_number]"/>
+                </http:request-builder>
+            </http:request>
+        </foreach>
+        <logger level="INFO" doc:name="Logger"/>
+    </flow>
+    <flow name="createItemInEBS">
+        <vm:inbound-endpoint exchange-pattern="request-response" path="createItemInEBS" doc:name="VM"/>
+        <logger message="Call CreateItem" level="INFO" doc:name="Logger"/>
+    </flow>
+    <flow name="getStandardLeadTime">
+        <vm:inbound-endpoint exchange-pattern="request-response" path="getStandardLeadTime" connector-ref="VM" doc:name="VM"/>
+        <logger message="Call getStandardLeadTime -&gt; #[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Logger"/>
+        <flow-ref name="getStandardLeadTime-FlowVars" doc:name="getStandardLeadTime-FlowVars"/>
+        <foreach collection="#[message.payload.getStandardLeadTime.quote_process.line_process.lines]" doc:name="For Each">
+            <http:request config-ref="HTTP_Request_Configuration" path="/part/{part_id}/warehouse" method="GET" doc:name="HTTP">
+                <http:request-builder>
+                    <http:query-param paramName="locationID" value="#[flowVars.shipTo_country]"/>
+                    <http:query-param paramName="requestQty" value="#[message.payload.qty_line]"/>
+                    <http:uri-param paramName="part_id" value="#[message.payload._part_number]"/>
+                </http:request-builder>
+            </http:request>
+        </foreach>
+        <logger message="Payload After -&gt; #[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Logger"/>
+    </flow>
+    <sub-flow name="getStandardLeadTime-FlowVars">
+        <set-variable variableName="bs_id" value="#[message.payload.getStandardLeadTime.quote_process.bs_id]" doc:name="bs_id"/>
+        <set-variable variableName="buyer_company_name" value="#[message.payload.getStandardLeadTime.quote_process.buyer_company_name]" doc:name="buyer_company_name"/>
+        <set-variable variableName="supplier_company_name" value="#[message.payload.getStandardLeadTime.quote_process.supplier_company_name]" doc:name="supplier_company_name"/>
+        <set-variable variableName="transactionID_quote" value="#[message.payload.getStandardLeadTime.quote_process.transactionID_quote]" doc:name="transactionID_quote"/>
+        <set-variable variableName="shipTo_country" value="#[message.payload.getStandardLeadTime.quote_process.shipTo_country]" doc:name="shipTo_country"/>
+    </sub-flow>
+</mule>
