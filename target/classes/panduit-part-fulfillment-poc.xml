@@ -26,10 +26,19 @@ http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/ba
     <flow name="panduit-part-fulfillment-pocFlow">
         <http:listener config-ref="HTTP_Listener_Configuration" path="/test-part" doc:name="HTTP"/>
         <logger message="Entered flow with Payload #[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Logger"/>
+        <json:validate-schema schemaLocation="" doc:name="Validate JSON Schema"/>
         <json:json-to-object-transformer returnClass="com.panduit.poc.PartFulfillment" mimeType="application/json" doc:name="JSON to Object"/>
+        <vm:outbound-endpoint exchange-pattern="one-way" path="partFulfillment" connector-ref="VM" doc:name="VM"/>
+        <set-property propertyName="http.status" value="202" doc:name="Property"/>
+        <logger message="Payload After -&gt; #[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Logger"/>
+    </flow>
+    <flow name="PartFulfillment-MAIN_FLOW" processingStrategy="queued-asynchronous">
+        <vm:inbound-endpoint exchange-pattern="one-way" path="partFulfillment" connector-ref="VM" doc:name="VM"/>
+        <logger message="Entered Main flow with payload #[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Logger"/>
         <vm:outbound-endpoint exchange-pattern="request-response" path="getPricingInfo" connector-ref="VM" doc:name="CALL -&gt; getPricingInfo"/>
         <vm:outbound-endpoint exchange-pattern="request-response" path="getStandardLeadTime" connector-ref="VM" doc:name="CALL -&gt; getStandardLeadTime"/>
-        <logger message="Payload After -&gt; #[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Logger"/>
+        <vm:outbound-endpoint exchange-pattern="request-response" path="createItemInEBS" connector-ref="VM" doc:name="CALL =&gt; createItemInEBS"/>
+        <vm:outbound-endpoint exchange-pattern="one-way" path="sendBackToCPQ" connector-ref="VM" doc:name="VM"/>
     </flow>
     <flow name="getPricingInfo">
         <vm:inbound-endpoint exchange-pattern="request-response" path="getPricingInfo" connector-ref="VM" doc:name="VM"/>
@@ -74,4 +83,16 @@ http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/ba
         <set-variable variableName="transactionID_quote" value="#[message.payload.getStandardLeadTime.quote_process.transactionID_quote]" doc:name="transactionID_quote"/>
         <set-variable variableName="shipTo_country" value="#[message.payload.getStandardLeadTime.quote_process.shipTo_country]" doc:name="shipTo_country"/>
     </sub-flow>
+    <flow name="sendBackToCPQ">
+        <vm:inbound-endpoint exchange-pattern="one-way" path="sendBackToCPQ" connector-ref="VM" doc:name="VM"/>
+        <logger level="INFO" doc:name="Logger"/>
+        <dw:transform-message doc:name="Transform Message">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/java
+---
+{
+}]]></dw:set-payload>
+        </dw:transform-message>
+        <http:request config-ref="HTTP_Request_Configuration" path="/quoteActionToPerform" method="POST" doc:name="HTTP"/>
+    </flow>
 </mule>
