@@ -12,7 +12,6 @@ public class LineProcess {
 
 	public void setLines(Line[] lines) {
 		this.lines = lines;
-	}
-	
+	}	
 	
 }

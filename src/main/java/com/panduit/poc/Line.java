@@ -13,7 +13,43 @@ public class Line {
 	private String pricelistName_line;
 	private String bomString_line;
 	
+	private String price;
+	private String uom;
+	private String priceModifier;
+	private String currencyCode;
+	private String errorMessage;
 	
+	
+	public String getPrice() {
+		return price;
+	}
+	public void setPrice(String price) {
+		this.price = price;
+	}
+	public String getUom() {
+		return uom;
+	}
+	public void setUom(String uom) {
+		this.uom = uom;
+	}
+	public String getPriceModifier() {
+		return priceModifier;
+	}
+	public void setPriceModifier(String priceModifier) {
+		this.priceModifier = priceModifier;
+	}
+	public String getCurrencyCode() {
+		return currencyCode;
+	}
+	public void setCurrencyCode(String currencyCode) {
+		this.currencyCode = currencyCode;
+	}
+	public String getErrorMessage() {
+		return errorMessage;
+	}
+	public void setErrorMessage(String errorMessage) {
+		this.errorMessage = errorMessage;
+	}
 	public String get_document_number() {
 		return _document_number;
 	}

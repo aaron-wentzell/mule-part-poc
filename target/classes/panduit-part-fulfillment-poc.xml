@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<mule xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw" xmlns:json="http://www.mulesoft.org/schema/mule/json" xmlns:vm="http://www.mulesoft.org/schema/mule/vm" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:batch="http://www.mulesoft.org/schema/mule/batch" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+<mule xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting" xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw" xmlns:json="http://www.mulesoft.org/schema/mule/json" xmlns:vm="http://www.mulesoft.org/schema/mule/vm" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:batch="http://www.mulesoft.org/schema/mule/batch" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
 	xmlns:spring="http://www.springframework.org/schema/beans" 
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
@@ -10,23 +10,23 @@ http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/jso
 http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
 http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd
 http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd
-http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd">
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd
+http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd">
     <http:listener-config name="HTTP_Listener_Configuration" host="0.0.0.0" port="8081" doc:name="HTTP Listener Configuration"/>
     <vm:connector name="VM" validateConnections="true" doc:name="VM"/>
-    <http:request-config name="HTTP_Request_Configuration" host="panduit-system-api.cloudhub.io" port="80" basePath="/rest/v1/System/" doc:name="HTTP Request Configuration"/>
+    <http:request-config name="HTTP_Request_Configuration" host="panduit-system-api-dev.cloudhub.io" port="80" basePath="/rest/v1/System/" doc:name="HTTP Request Configuration"/>
     <sub-flow name="getPricingInfo-FlowVars">
-        <set-variable variableName="bs_id" value="#[message.payload.getPricingInfo.quote_process.bs_id]" doc:name="bs_id"/>
-        <set-variable variableName="buyer_company_name" value="#[message.payload.getPricingInfo.quote_process.buyer_company_name]" doc:name="buyer_company_name"/>
-        <set-variable variableName="supplier_company_name" value="#[message.payload.getPricingInfo.quote_process.supplier_company_name]" doc:name="supplier_company_name"/>
-        <set-variable variableName="customer_id" value="#[message.payload.getPricingInfo.quote_process._customer_id]" doc:name="customer_id"/>
-        <set-variable variableName="transactionID_quote" value="#[message.payload.getPricingInfo.quote_process.transactionID_quote]" doc:name="transactionID_quote"/>
-        <set-variable variableName="shipTo_country" value="#[message.payload.getPricingInfo.quote_process.shipTo_country]" doc:name="shipTo_country"/>
-        <set-variable variableName="qpq_quote_number" value="#[message.payload.getPricingInfo.quote_process.qpq_quote_number]" doc:name="qpq_quote_number"/>
+        <set-session-variable doc:name="Session Variable" variableName="bs_id" value="#[message.payload.getPricingInfo.quote_process.bs_id]"/>
+        <set-session-variable variableName="buyer_company_name" value="#[message.payload.getPricingInfo.quote_process.buyer_company_name]" doc:name="buyer_company_name"/>
+        <set-session-variable variableName="supplier_company_name" value="#[message.payload.getPricingInfo.quote_process.supplier_company_name]" doc:name="supplier_company_name"/>
+        <set-session-variable variableName="customer_id" value="#[json:getPricingInfo/quote_process/_customer_id]" doc:name="customer_id"/>
+        <set-session-variable variableName="transactionID_quote" value="#[message.payload.getPricingInfo.quote_process.transactionID_quote]" doc:name="transactionID_quote"/>
+        <set-session-variable variableName="shipTo_country" value="#[message.payload.getPricingInfo.quote_process.shipTo_country]" doc:name="shipTo_country"/>
+        <set-session-variable variableName="qpq_quote_number" value="#[json:getPricingInfo/quote_process/qpq_quote_number]" doc:name="qpq_quote_number"/>
     </sub-flow>
     <flow name="panduit-part-fulfillment-pocFlow">
         <http:listener config-ref="HTTP_Listener_Configuration" path="/test-part" doc:name="HTTP"/>
         <logger message="Entered flow with Payload #[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Logger"/>
-        <json:validate-schema schemaLocation="" doc:name="Validate JSON Schema"/>
         <json:json-to-object-transformer returnClass="com.panduit.poc.PartFulfillment" mimeType="application/json" doc:name="JSON to Object"/>
         <vm:outbound-endpoint exchange-pattern="one-way" path="partFulfillment" connector-ref="VM" doc:name="VM"/>
         <set-property propertyName="http.status" value="202" doc:name="Property"/>
@@ -35,27 +35,77 @@ http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/ba
     <flow name="PartFulfillment-MAIN_FLOW" processingStrategy="queued-asynchronous">
         <vm:inbound-endpoint exchange-pattern="one-way" path="partFulfillment" connector-ref="VM" doc:name="VM"/>
         <logger message="Entered Main flow with payload #[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Logger"/>
-        <vm:outbound-endpoint exchange-pattern="request-response" path="getPricingInfo" connector-ref="VM" doc:name="CALL -&gt; getPricingInfo"/>
-        <vm:outbound-endpoint exchange-pattern="request-response" path="getStandardLeadTime" connector-ref="VM" doc:name="CALL -&gt; getStandardLeadTime"/>
-        <vm:outbound-endpoint exchange-pattern="request-response" path="createItemInEBS" connector-ref="VM" doc:name="CALL =&gt; createItemInEBS"/>
+        <set-variable variableName="originalPayload" value="#[message.payload]" doc:name="Variable"/>
+        <enricher doc:name="Message Enricher">
+            <vm:outbound-endpoint exchange-pattern="request-response" path="getPricingInfo" connector-ref="VM" doc:name="CALL -&gt; getPricingInfo"/>
+            <enrich source="payload" target="#[flowVars.newPayload]"/>
+        </enricher>
+        
+        <logger message="Payload Just Outside -&gt; #[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Logger"/>
+        <scripting:transformer returnClass="com.panduit.poc.PartFulfillment" doc:name="Groovy">
+            <scripting:script engine="Groovy"><![CDATA[import com.panduit.poc.*;
+
+PartFulfillment newPayload = message.payload;
+newPayload.getGetPricingInfo().getQuote_process().getLine_process().setLines(flowVars.newPayload);
+
+message.payload.getGetPricingInfo().getQuote_process().getLine_process().setLines(flowVars.newPayload);
+
+return newPayload;
+]]></scripting:script>
+        </scripting:transformer>
         <vm:outbound-endpoint exchange-pattern="one-way" path="sendBackToCPQ" connector-ref="VM" doc:name="VM"/>
     </flow>
-    <flow name="getPricingInfo">
+    <flow name="getPricingInfo-Collection">
         <vm:inbound-endpoint exchange-pattern="request-response" path="getPricingInfo" connector-ref="VM" doc:name="VM"/>
         <logger message="Received Payload #[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Logger"/>
         <flow-ref name="getPricingInfo-FlowVars" doc:name="getPricingInfo-FlowVars"/>
-        <foreach collection="#[message.payload.getPricingInfo.quote_process.line_process.lines]" doc:name="For Each">
+       
+        	<splitter expression="#[json:getPricingInfo/quote_process/line_process/lines]" doc:name="Splitter"/>
+        <flow-ref name="getPricingInfo-Individual" doc:name="getPricingInfo-Individual"/>
+        	
+
+        	<collection-aggregator failOnTimeout="true" doc:name="Collection Aggregator"/>
+        
+        
+        
+        
+        
+        <logger level="INFO" doc:name="Logger" message="AFTER --&gt; #[message.payloadAs(java.lang.String)]"/>
+        <json:json-to-object-transformer returnClass="com.panduit.poc.Line[]" doc:name="JSON to Object"/>
+    </flow>
+    <flow name="getPricingInfo-Individual">
+        <logger message="#[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Logger"/>
+        <set-variable variableName="docNumber" value="#[json:_document_number]" doc:name="Variable"/>
+        <set-variable variableName="partTypeDisplay" value="#[json:partTypeDisplay_line]" doc:name="Variable"/>
+        <set-variable variableName="partNumber" value="#[json:_part_number]" doc:name="Variable"/>
+        <set-variable variableName="qtyLine" value="#[json:qty_line]" doc:name="Variable"/>
+        
             <http:request config-ref="HTTP_Request_Configuration" path="/part/{part_number}/pricing" method="GET" doc:name="Call GetPricingInfo">
                 <http:request-builder>
-                    <http:query-param paramName="quote_Num" value="#[flowVars.qpq_quote_number]"/>
-                    <http:query-param paramName="customer_id" value="#[flowVars.customer_id]"/>
-                    <http:query-param paramName="docNum" value="#[message.payload._document_number]"/>
-                    <http:query-param paramName="requestQty" value="#[message.payload.qty_line]"/>
-                    <http:uri-param paramName="part_number" value="#[message.payload._part_number]"/>
+                    <http:query-param paramName="quote_Num" value="#[sessionVars.qpq_quote_number]"/>
+                    <http:query-param paramName="customer_id" value="#[sessionVars.customer_id]"/>
+                    <http:query-param paramName="docNum" value="#[json:_document_number]"/>
+                    <http:query-param paramName="requestQty" value="#[json:qty_line]"/>
+                    <http:uri-param paramName="part_number" value="#[json:_part_number]"/>
                 </http:request-builder>
             </http:request>
-        </foreach>
-        <logger level="INFO" doc:name="Logger"/>
+        <dw:transform-message doc:name="Transform Message">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/json
+---
+{
+	"_document_number":flowVars.docNumber,
+	partTypeDisplay_line:flowVars.partTypeDisplay,
+	"_part_number":flowVars.partNumber,
+	qty_line:flowVars.qtyLine,
+	price:payload.price,
+	uom:payload.uom,
+	priceModifier:payload.priceModifier,
+	currencyCode:payload.currencyCode,
+	errorMessage:payload.errorMessage
+}]]></dw:set-payload>
+        </dw:transform-message>
+        <logger message="#[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Copy_of_Logger"/>
     </flow>
     <flow name="createItemInEBS">
         <vm:inbound-endpoint exchange-pattern="request-response" path="createItemInEBS" doc:name="VM"/>
@@ -85,14 +135,53 @@ http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/ba
     </sub-flow>
     <flow name="sendBackToCPQ">
         <vm:inbound-endpoint exchange-pattern="one-way" path="sendBackToCPQ" connector-ref="VM" doc:name="VM"/>
-        <logger level="INFO" doc:name="Logger"/>
-        <dw:transform-message doc:name="Transform Message">
+        <logger level="INFO" doc:name="Logger" message="#[message.payloadAs(java.lang.String)]"/>
+    </flow>
+    <flow name="Copy_of_panduit-part-fulfillment-pocFlow">
+        <logger message="#[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Copy_of_Logger"/>
+    </flow>
+    <flow name="Copy_of_panduit-part-fulfillment-pocFlow1">
+        <set-variable variableName="docNumber" value="#[json:_document_number]" doc:name="Copy_of_Variable"/>
+    </flow>
+    <flow name="Copy_of_panduit-part-fulfillment-pocFlow2">
+        <set-variable variableName="partTypeDisplay" value="#[json:partTypeDisplay_line]" doc:name="Copy_of_Variable"/>
+    </flow>
+    <flow name="Copy_of_panduit-part-fulfillment-pocFlow3">
+        <set-variable variableName="partNumber" value="#[json:_part_number]" doc:name="Copy_of_Variable"/>
+    </flow>
+    <flow name="Copy_of_panduit-part-fulfillment-pocFlow4">
+        <set-variable variableName="qtyLine" value="#[json:qty_line]" doc:name="Copy_of_Variable"/>
+    </flow>
+    <flow name="Copy_of_panduit-part-fulfillment-pocFlow5">
+        <http:request config-ref="HTTP_Request_Configuration" path="/part/{part_number}/pricing" method="GET" doc:name="Copy_of_Call GetPricingInfo">
+            <http:request-builder>
+                <http:query-param paramName="quote_Num" value="#[sessionVars.qpq_quote_number]"/>
+                <http:query-param paramName="customer_id" value="#[sessionVars.customer_id]"/>
+                <http:query-param paramName="docNum" value="#[json:_document_number]"/>
+                <http:query-param paramName="requestQty" value="#[json:qty_line]"/>
+                <http:uri-param paramName="part_number" value="#[json:_part_number]"/>
+            </http:request-builder>
+        </http:request>
+    </flow>
+    <flow name="Copy_of_panduit-part-fulfillment-pocFlow6">
+        <dw:transform-message doc:name="Copy_of_Transform Message">
             <dw:set-payload><![CDATA[%dw 1.0
 %output application/java
 ---
 {
+	"_document_number":flowVars.docNumber,
+	partTypeDisplay_line:flowVars.partTypeDisplay,
+	"_partNumber":flowVars.partNumber,
+	qty_line:flowVars.qtyLine,
+	price:payload.price,
+	uom:payload.uom,
+	priceModifier:payload.priceModifier,
+	currencyCode:payload.currencyCode,
+	errorMessage:payload.errorMessage
 }]]></dw:set-payload>
         </dw:transform-message>
-        <http:request config-ref="HTTP_Request_Configuration" path="/quoteActionToPerform" method="POST" doc:name="HTTP"/>
+    </flow>
+    <flow name="Copy_of_panduit-part-fulfillment-pocFlow7">
+        <logger message="#[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Copy_of_Copy_of_Logger"/>
     </flow>
 </mule>
